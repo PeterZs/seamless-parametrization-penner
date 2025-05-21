@@ -31,6 +31,7 @@
 #include "holonomy/interface.h"
 #include "holonomy/holonomy/newton.h"
 #include "holonomy/holonomy/cones.h"
+#include "holonomy/core/viewer.h"
 #include "optimization/parameterization/refinement.h"
 
 #include <igl/readOBJ.h>
@@ -72,6 +73,7 @@ int main(int argc, char* argv[])
     // NOTE: Only several parameters are exposed to the CLI
     MarkedMetricParameters marked_metric_params;
     NewtonParameters alg_params;
+    bool use_free_cones = false;
     app.add_flag(
         "--remove_loop_constraints",
         marked_metric_params.remove_loop_constraints,
@@ -80,12 +82,14 @@ int main(int argc, char* argv[])
         ->check(CLI::NonNegativeNumber);
     app.add_option("--error_eps", alg_params.error_eps, "Error convergence threshold")
         ->check(CLI::NonNegativeNumber);
+    app.add_flag("--use_initial_zero", marked_metric_params.use_initial_zero, "Use zero coordinates");
+    app.add_flag("--use_free_cones", use_free_cones, "Let cones have free angles");
     alg_params.output_dir = output_dir;
     alg_params.error_log = true;
 
     // Miscellaneous
     double max_triangle_quality = 0.;
-    bool use_delaunay = true;
+    bool use_delaunay = false;
     bool fit_field = false;
     spdlog::level::level_enum log_level = spdlog::level::info;
     app.add_option(
@@ -124,8 +128,21 @@ int main(int argc, char* argv[])
         convert_std_to_eigen_vector(rotation_form_vec, rotation_form);
     }
 
-    // Generate initial marked mesh for optimization
+    // get free cones, either none or all
     std::vector<int> free_cones(0);
+    if (use_free_cones)
+    {
+        int num_vertices = Th_hat.size();
+        for (int vi = 0; vi < num_vertices; ++vi)
+        {
+            if (!float_equal(Th_hat[vi], 2. * M_PI))
+            {
+                free_cones.push_back(vi);
+            }
+        }
+    }
+
+    // Generate initial marked mesh for optimization
     auto [marked_metric, vtx_reindex] =
         generate_marked_metric(V, F, V, F, Th_hat, rotation_form, free_cones, marked_metric_params);
 
@@ -186,6 +203,7 @@ int main(int argc, char* argv[])
     // Generate minimal refinement
     RefinementMesh refinement_mesh(V_o, F_o, uv_o, FT_o, fn_to_f_o, endpoints_o);
     auto [V_r, F_r, uv_r, FT_r, fn_to_f_r, endpoints_r] = refinement_mesh.get_VF_mesh();
+    view_parameterization(V_r, F_r, uv_r, FT_r);
 
     // Write the output mesh
     output_filename = join_path(output_dir, "parameterized_mesh.obj");
