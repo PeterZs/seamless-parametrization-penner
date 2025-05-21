@@ -117,6 +117,8 @@ int main(int argc, char* argv[])
     if ((fit_field) || (Th_hat_filename == "")) {
         FieldParameters field_params;
         std::tie(rotation_form, Th_hat) = generate_intrinsic_rotation_form(V, F, field_params);
+        std::string mesh_name = std::filesystem::path(mesh_filename).filename().replace_extension();
+        write_vector(Th_hat, join_path(output_dir, mesh_name + "_Th_hat"));
     } else {
         spdlog::info("Using cone angles at {}", Th_hat_filename);
         read_vector_from_file(Th_hat_filename, Th_hat);
