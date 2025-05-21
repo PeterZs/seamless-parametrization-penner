@@ -91,6 +91,7 @@ int main(int argc, char* argv[])
     double max_triangle_quality = 0.;
     bool use_delaunay = false;
     bool fit_field = false;
+    bool show_parameterization = false;
     spdlog::level::level_enum log_level = spdlog::level::info;
     app.add_option(
            "--max_triangle_quality",
@@ -99,6 +100,7 @@ int main(int argc, char* argv[])
         ->check(CLI::NonNegativeNumber);
     app.add_flag("--use_delaunay", use_delaunay, "Use Delaunay connectivity");
     app.add_flag("--fit_field", fit_field, "Fit new cross field");
+    app.add_flag("--show_parameterization", show_parameterization, "Show final paramaterization");
     app.add_option("--log_level", log_level, "Level of logging")
         ->transform(CLI::CheckedTransformer(log_level_map, CLI::ignore_case));
 
@@ -205,7 +207,7 @@ int main(int argc, char* argv[])
     // Generate minimal refinement
     RefinementMesh refinement_mesh(V_o, F_o, uv_o, FT_o, fn_to_f_o, endpoints_o);
     auto [V_r, F_r, uv_r, FT_r, fn_to_f_r, endpoints_r] = refinement_mesh.get_VF_mesh();
-    view_parameterization(V_r, F_r, uv_r, FT_r);
+    if (show_parameterization) view_parameterization(V_r, F_r, uv_r, FT_r);
 
     // Write the output mesh
     output_filename = join_path(output_dir, "parameterized_mesh.obj");
