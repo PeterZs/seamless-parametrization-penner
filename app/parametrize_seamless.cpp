@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 
     // Get input angles from cross field or file
     std::vector<Scalar> Th_hat;
-    VectorX rotation_form;
+    VectorX rotation_form(F.rows() * 3);
     if ((fit_field) || (Th_hat_filename == "")) {
         FieldParameters field_params;
         std::tie(rotation_form, Th_hat) = generate_intrinsic_rotation_form(V, F, field_params);
@@ -127,9 +127,12 @@ int main(int argc, char* argv[])
 
         // Get input rotation
         std::vector<Scalar> rotation_form_vec;
-        spdlog::info("Using rotation_form at {}", rotation_form_filename);
-        read_vector_from_file(rotation_form_filename, rotation_form_vec);
-        convert_std_to_eigen_vector(rotation_form_vec, rotation_form);
+        if (rotation_form_filename != "")
+        {
+            spdlog::info("Using rotation_form at {}", rotation_form_filename);
+            read_vector_from_file(rotation_form_filename, rotation_form_vec);
+            convert_std_to_eigen_vector(rotation_form_vec, rotation_form);
+        }
     }
 
     // get free cones, either none or all
@@ -150,11 +153,15 @@ int main(int argc, char* argv[])
     auto [marked_metric, vtx_reindex] =
         generate_marked_metric(V, F, V, F, Th_hat, rotation_form, free_cones, marked_metric_params);
 
+
     // Check for invalid cones and fix any issues
     if (!validate_cones(marked_metric)) {
         spdlog::info("Fixing invalid cones");
         fix_cones(marked_metric);
     }
+
+    // add constraints to viewer
+    view_rotation_form(marked_metric, vtx_reindex, V, rotation_form, Th_hat, "rotation", false);
 
     // Make initial mesh Delaunay if desired
     std::vector<int> flip_seq = {};
@@ -207,7 +214,7 @@ int main(int argc, char* argv[])
     // Generate minimal refinement
     RefinementMesh refinement_mesh(V_o, F_o, uv_o, FT_o, fn_to_f_o, endpoints_o);
     auto [V_r, F_r, uv_r, FT_r, fn_to_f_r, endpoints_r] = refinement_mesh.get_VF_mesh();
-    if (show_parameterization) view_parameterization(V_r, F_r, uv_r, FT_r);
+    if (show_parameterization) view_seamless_parameterization(V_r, F_r, uv_r, FT_r);
 
     // Write the output mesh
     output_filename = join_path(output_dir, "parameterized_mesh.obj");

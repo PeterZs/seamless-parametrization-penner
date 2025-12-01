@@ -29,7 +29,7 @@
 *                                          *                                     *
 *********************************************************************************/
 #include "holonomy/interface.h"
-#include "holonomy/core/field.h"
+#include "holonomy/field/field.h"
 #include "holonomy/holonomy/cones.h"
 #include "util/io.h"
 
@@ -148,12 +148,12 @@ int main(int argc, char* argv[])
     cone_metric->get_corner_angles(he2angle, he2cot);
     int num_halfedges = cone_metric->n_halfedges();
     for (int hij = 0; hij < num_halfedges; ++hij) {
-        if (float_equal(cone_metric->l[hij], 0)) {
+        if (float_equal(cone_metric->l[hij], 0.)) {
             spdlog::error("Mesh has {} length edge", cone_metric->l[hij]);
             write_error_record(error_filename, mesh_name + " has 0 length edge");
             return 1;
         }
-        if (float_equal(he2angle[hij], 0)) {
+        if (float_equal(he2angle[hij], 0.)) {
             spdlog::error("Mesh has {} angle", he2angle[hij]);
             write_error_record(error_filename, mesh_name + " has 0 corner angle");
             return 1;
