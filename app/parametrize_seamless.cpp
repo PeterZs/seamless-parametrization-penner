@@ -32,11 +32,14 @@
 #include "holonomy/holonomy/newton.h"
 #include "holonomy/holonomy/cones.h"
 #include "holonomy/core/viewer.h"
+#include "holonomy/field/frame_field.h"
+#include "holonomy/field/intrinsic_field.h"
 #include "optimization/parameterization/refinement.h"
 
 #include <igl/readOBJ.h>
 #include <igl/writeOBJ.h>
 #include <CLI/CLI.hpp>
+#include <filesystem>
 
 using namespace Penner;
 using namespace Penner::Optimization;
@@ -57,14 +60,14 @@ int main(int argc, char* argv[])
     CLI::App app{"Generate a constrained seamless parametrization."};
     std::string mesh_filename = "";
     std::string Th_hat_filename = "";
-    std::string rotation_form_filename = "";
+    std::filesystem::path field_filename = "";
     std::string output_dir = "./";
 
     // IO Parameters
     app.add_option("--mesh", mesh_filename, "Mesh filepath")->check(CLI::ExistingFile)->required();
     app.add_option("--cones", Th_hat_filename, "Cone angle filepath")
         ->check(CLI::ExistingFile);
-    app.add_option("--field", rotation_form_filename, "Rotation field one form")
+    app.add_option("--field", field_filename, "Rotation field one form")
         ->check(CLI::ExistingFile);
     app.add_option("-o,--output", output_dir, "Output directory");
     std::filesystem::create_directory(output_dir);
@@ -114,25 +117,74 @@ int main(int argc, char* argv[])
     igl::readOBJ(mesh_filename, V, uv, N, F, FT, FN);
 
     // Get input angles from cross field or file
+    std::string field_format = field_filename.extension();
     std::vector<Scalar> Th_hat;
     VectorX rotation_form(F.rows() * 3);
-    if ((fit_field) || (Th_hat_filename == "")) {
+    if ((fit_field) || (field_filename == "")) {
         FieldParameters field_params;
         std::tie(rotation_form, Th_hat) = generate_intrinsic_rotation_form(V, F, field_params);
         std::string mesh_name = std::filesystem::path(mesh_filename).filename().replace_extension();
         write_vector(Th_hat, join_path(output_dir, mesh_name + "_Th_hat"));
-    } else {
-        spdlog::info("Using cone angles at {}", Th_hat_filename);
-        read_vector_from_file(Th_hat_filename, Th_hat);
+    }
+    else if (field_format == ".ffield")
+    {
+        auto [m, vtx_reindex] = generate_mesh(V, F, V, F, Th_hat);
+        auto [reference_field, theta, kappa, period_jump] = load_frame_field(field_filename);
 
+        // initialize feild generator with the given field
+        IntrinsicNRosyField field_generator;
+        field_generator.min_angle = M_PI / 2.;
+        field_generator.use_trivial_boundary = true;
+        field_generator.initialize(m);
+        field_generator.set_field(m, vtx_reindex, F, theta, kappa, period_jump);
+
+        // extract the rotation form and cone angles
+        rotation_form = field_generator.compute_rotation_form(m);
+        Th_hat = generate_cones_from_rotation_form(m, vtx_reindex, rotation_form);
+        //write_rosy_field("field.rosy", V, F, reference_field, theta);
+    }
+    else if (field_format == ".rosy")
+    {
+        auto [m, vtx_reindex] = generate_mesh(V, F, V, F, Th_hat);
+        auto rosy_field = load_rosy_field(field_filename);
+
+        // initialize feild generator with the given theta 
+        int num_faces = F.rows();
+        Eigen::VectorXi reference_corner(num_faces);
+        Eigen::VectorXd theta(num_faces);
+        Eigen::MatrixXd kappa(num_faces, 3);
+        Eigen::MatrixXi period_jump(num_faces, 3);
+        IntrinsicNRosyField field_generator;
+        field_generator.min_angle = M_PI / 2.;
+        field_generator.use_trivial_boundary = true;
+        field_generator.initialize(m);
+        field_generator.get_field(m, vtx_reindex, F, reference_corner, theta, kappa, period_jump);
+        theta = infer_theta(V, F, reference_corner, rosy_field);
+        field_generator.set_field(m, vtx_reindex, F, theta, kappa, period_jump);
+        field_generator.compute_principal_matchings(m);
+
+        // extract the rotation form and cone angles
+        rotation_form = field_generator.compute_rotation_form(m);
+        Th_hat = generate_cones_from_rotation_form(m, vtx_reindex, rotation_form);
+    }
+    else {
         // Get input rotation
         std::vector<Scalar> rotation_form_vec;
-        if (rotation_form_filename != "")
+        spdlog::info("Using rotation_form at {}", field_filename);
+        read_vector_from_file(field_filename, rotation_form_vec);
+        convert_std_to_eigen_vector(rotation_form_vec, rotation_form);
+
+        if (Th_hat_filename != "")
         {
-            spdlog::info("Using rotation_form at {}", rotation_form_filename);
-            read_vector_from_file(rotation_form_filename, rotation_form_vec);
-            convert_std_to_eigen_vector(rotation_form_vec, rotation_form);
+            spdlog::info("Using cone angles at {}", Th_hat_filename);
+            read_vector_from_file(Th_hat_filename, Th_hat);
         }
+        else
+        {
+            auto [m, vtx_reindex] = generate_mesh(V, F, V, F, Th_hat);
+            Th_hat = generate_cones_from_rotation_form(m, vtx_reindex, rotation_form);
+        }
+
     }
 
     // get free cones, either none or all

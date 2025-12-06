@@ -32,8 +32,8 @@ The core parameterization method is `bin/parametrize_seamless`. This executable 
 |flag | description| default|
 | --- | --- | --- |
 |`--mesh` | Mesh filepath| `none`|
-|`--cones` | Target cone filepath| `none`|
 |`--field` | Cross field rotation form filepath| `none`|
+|`--cones` | Target cone filepath (optional) | `none`|
 |`--output` | Output directory| `./`|
 |`--remove_holonomy_constraints` | Only constrain cone angles (parametrization no longer seamless)| `false`|
 |`--max_itr` | Maximum number of iterations| `500`| 
@@ -42,7 +42,7 @@ The core parameterization method is `bin/parametrize_seamless`. This executable 
 |`--use_delaunay` | Perform Newton in Delaunay connectivity | `true`|
 |`--fit_field` | Fit new cross field instead of using cones and field from file| `false`|
 
-The input mesh must be a manifold surface with a single connected component. The input cone and field files can be generated with `bin/generate_frame_field`, or they can generated algorithmically at runtime with the `--fit_field` flag. The output is a refined mesh with a parameterization and a file of metric coordinate values.
+The input mesh must be a manifold surface with a single connected component. The input cone and field files can be generated with `bin/generate_frame_field`, or they can generated algorithmically at runtime with the `--fit_field` flag. `.ffield` and `.rosy` field formats are also supported. The output is a refined mesh with a parameterization and a file of metric coordinate values.
 
 ## Figure Reproduction
 
